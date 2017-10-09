@@ -27,6 +27,7 @@
  * Copyright (c) 2016, Intel Corporation.
  * Copyright 2016 Nexenta Systems, Inc.
  * Copyright (c) 2017 Datto Inc.
+ * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
  */
 
 #ifndef	_LIBZFS_H
@@ -260,13 +261,17 @@ typedef struct splitflags {
 	int name_flags;
 } splitflags_t;
 
+typedef struct reopenflags {
+	boolean_t no_scrub_restart : 1;
+} reopenflags_t;
+
 /*
  * Functions to manipulate pool and vdev state
  */
 extern int zpool_scan(zpool_handle_t *, pool_scan_func_t, pool_scrub_cmd_t);
 extern int zpool_clear(zpool_handle_t *, const char *, nvlist_t *);
 extern int zpool_reguid(zpool_handle_t *);
-extern int zpool_reopen(zpool_handle_t *);
+extern int zpool_reopen(zpool_handle_t *, const reopenflags_t *);
 
 extern int zpool_sync_one(zpool_handle_t *, void *);
 

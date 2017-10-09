@@ -36,6 +36,7 @@
  * Copyright (c) 2017, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
  * Copyright (c) 2017 Datto Inc. All rights reserved.
  * Copyright 2017 RackTop Systems.
+ * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
  */
 
 /*
@@ -5037,6 +5038,18 @@ zfs_ioc_pool_reopen(zfs_cmd_t *zc)
 {
 	spa_t *spa;
 	int error;
+	nvlist_t *reopenflags;
+	boolean_t no_scrub_restart;
+
+	if (zc->zc_nvlist_src != 0 &&
+	    (error = get_nvlist(zc->zc_nvlist_src, zc->zc_nvlist_src_size,
+	    zc->zc_iflags, &reopenflags)) != 0)
+		return (error);
+
+	error = nvlist_lookup_boolean_value(reopenflags,
+	    "no_scrub_restart", &no_scrub_restart);
+	if (error != 0)
+		return (SET_ERROR(EINVAL));
 
 	error = spa_open(zc->zc_name, &spa, FTAG);
 	if (error != 0)
@@ -5045,12 +5058,14 @@ zfs_ioc_pool_reopen(zfs_cmd_t *zc)
 	spa_vdev_state_enter(spa, SCL_NONE);
 
 	/*
-	 * If a resilver is already in progress then set the
-	 * spa_scrub_reopen flag to B_TRUE so that we don't restart
-	 * the scan as a side effect of the reopen. Otherwise, let
-	 * vdev_open() decided if a resilver is required.
+	 * If the no_scrub_restart flag is B_TRUE and a scrub is already
+	 * in progress then set spa_scrub_reopen flag to B_TRUE so that
+	 * we don't restart the scrub as a side effect of the reopen.
+	 * Otherwise, let vdev_open() decided if a resilver is required.
 	 */
-	spa->spa_scrub_reopen = dsl_scan_resilvering(spa->spa_dsl_pool);
+
+	spa->spa_scrub_reopen = (no_scrub_restart &&
+	    dsl_scan_scrubbing(spa->spa_dsl_pool));
 	vdev_reopen(spa->spa_root_vdev);
 	spa->spa_scrub_reopen = B_FALSE;
 

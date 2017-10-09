@@ -25,6 +25,7 @@
  * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
  * Copyright (c) 2017 Datto Inc.
+ * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
  */
 
 #include <ctype.h>
@@ -3370,20 +3371,35 @@ zpool_reguid(zpool_handle_t *zhp)
  * Reopen the pool.
  */
 int
-zpool_reopen(zpool_handle_t *zhp)
+zpool_reopen(zpool_handle_t *zhp, const reopenflags_t *flags)
 {
 	zfs_cmd_t zc = {"\0"};
 	char msg[1024];
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
+	nvlist_t *args;
+	int err = 0;
 
 	(void) snprintf(msg, sizeof (msg),
 	    dgettext(TEXT_DOMAIN, "cannot reopen '%s'"),
 	    zhp->zpool_name);
 
 	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
-	if (zfs_ioctl(hdl, ZFS_IOC_POOL_REOPEN, &zc) == 0)
-		return (0);
-	return (zpool_standard_error(hdl, errno, msg));
+
+	args = fnvlist_alloc();
+	fnvlist_add_boolean_value(args, "no_scrub_restart",
+	    flags->no_scrub_restart);
+	if (zcmd_write_src_nvlist(hdl, &zc, args) != 0) {
+		nvlist_free(args);
+		return (-1);
+	}
+
+	err = zfs_ioctl(hdl, ZFS_IOC_POOL_REOPEN, &zc);
+	if (err != 0)
+		err = zpool_standard_error(hdl, errno, msg);
+
+	nvlist_free(args);
+	zcmd_free_nvlists(&zc);
+	return err;
 }
 
 /* call into libzfs_core to execute the sync IOCTL per pool */
